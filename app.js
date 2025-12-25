@@ -1,9 +1,35 @@
+// ===== API Base URL =====
+const API_BASE = 'http://localhost:5000/api';
+
 // ===== DOM Elements =====
 const loginPage = document.getElementById('login-page');
 const chatPage = document.getElementById('chat-page');
+
+// Login form elements
+const loginFormContainer = document.getElementById('login-form-container');
 const loginForm = document.getElementById('login-form');
-const emailInput = document.getElementById('email');
-const passwordInput = document.getElementById('password');
+const loginUserIdInput = document.getElementById('login-userid');
+const loginPasswordInput = document.getElementById('login-password');
+const loginMessage = document.getElementById('login-message');
+const showRegisterLink = document.getElementById('show-register');
+
+// Register form elements
+const registerFormContainer = document.getElementById('register-form-container');
+const registerForm = document.getElementById('register-form');
+const regUserIdInput = document.getElementById('reg-userid');
+const regPasswordInput = document.getElementById('reg-password');
+const regPasswordConfirmInput = document.getElementById('reg-password-confirm');
+const regNameInput = document.getElementById('reg-name');
+const regJobInput = document.getElementById('reg-job');
+const regEmailInput = document.getElementById('reg-email');
+const checkIdBtn = document.getElementById('check-id-btn');
+const userIdMessage = document.getElementById('userid-message');
+const passwordMatchMessage = document.getElementById('password-match-message');
+const emailMessage = document.getElementById('email-message');
+const registerMessage = document.getElementById('register-message');
+const showLoginLink = document.getElementById('show-login');
+
+// Chat elements
 const messageInput = document.getElementById('message-input');
 const sendBtn = document.getElementById('send-btn');
 const chatMessages = document.getElementById('chat-messages');
@@ -11,19 +37,17 @@ const newChatBtn = document.getElementById('new-chat-btn');
 const profileMenuBtn = document.getElementById('profile-menu-btn');
 const profileDropdown = document.getElementById('profile-dropdown');
 const logoutBtn = document.getElementById('logout-btn');
-const suggestionCards = document.querySelectorAll('.suggestion-card');
+
+// User display elements
+const avatarText = document.getElementById('avatar-text');
+const displayName = document.getElementById('display-name');
+const displayJob = document.getElementById('display-job');
 
 // ===== State =====
 let isLoggedIn = false;
 let currentUser = null;
-
-// ===== Demo Responses =====
-const demoResponses = [
-    "최신 연구에 따르면, 해당 주제에 대해 여러 중요한 발견이 있었습니다. 주요 논문들을 검토한 결과, 다음과 같은 핵심 포인트를 정리해 드릴 수 있습니다:\n\n1. 최근 5년간의 메타분석 결과\n2. 임상시험에서 관찰된 효과 크기\n3. 현재 권장되는 프로토콜\n\n더 자세한 정보가 필요하시면 말씀해 주세요.",
-    "해당 연구 방법론에 대해 설명드리겠습니다. 일반적으로 사용되는 접근법은 다음과 같습니다:\n\n• **무작위 대조 시험 (RCT)**: 가장 높은 근거 수준\n• **코호트 연구**: 장기 추적 관찰에 적합\n• **체계적 문헌고찰**: 기존 연구 종합\n\n연구 설계 시 고려해야 할 주요 사항을 함께 검토해 드릴까요?",
-    "통계 분석 방법에 대한 질문이시네요. 해당 데이터 유형과 연구 목적에 따라 적절한 분석 방법이 달라집니다.\n\n연속형 변수의 경우 t-test나 ANOVA를, 범주형 변수의 경우 카이제곱 검정을 추천드립니다. 다변량 분석이 필요한 경우 회귀분석이나 Cox 비례위험 모형도 고려해 보세요.\n\n데이터에 대해 더 자세히 알려주시면 구체적인 추천을 드릴 수 있습니다.",
-    "논문 작성과 관련하여 도움을 드리겠습니다. IMRAD 구조(서론, 방법, 결과, 고찰)를 기본으로 하되, 타겟 저널의 가이드라인을 반드시 확인하세요.\n\n특히 주의할 점:\n- 초록은 마지막에 작성\n- 방법론의 재현가능성 확보\n- 결과는 객관적으로 기술\n- 고찰에서 한계점 명시\n\n특정 섹션에 대해 더 자세한 안내가 필요하시면 말씀해 주세요."
-];
+let isUserIdChecked = false;
+let modelStatus = { loaded: false, model_name: null, device: 'cpu' };
 
 // ===== Utility Functions =====
 function formatTime() {
@@ -31,78 +55,267 @@ function formatTime() {
     return now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function getRandomResponse() {
-    return demoResponses[Math.floor(Math.random() * demoResponses.length)];
-}
-
 function autoResizeTextarea(textarea) {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
 }
 
+function showMessage(element, message, type) {
+    element.textContent = message;
+    element.className = `form-message show ${type}`;
+}
+
+function hideMessage(element) {
+    element.className = 'form-message';
+}
+
+function showFieldMessage(element, message, type) {
+    element.textContent = message;
+    element.className = `field-message ${type}`;
+}
+
+function clearFieldMessage(element) {
+    element.textContent = '';
+    element.className = 'field-message';
+}
+
+function setButtonLoading(button, loading) {
+    if (loading) {
+        button.classList.add('loading');
+        button.disabled = true;
+    } else {
+        button.classList.remove('loading');
+        button.disabled = false;
+    }
+}
+
+// ===== Form Switching =====
+function showLoginForm() {
+    loginFormContainer.classList.remove('hidden');
+    registerFormContainer.classList.add('hidden');
+    hideMessage(loginMessage);
+    loginForm.reset();
+}
+
+function showRegisterForm() {
+    loginFormContainer.classList.add('hidden');
+    registerFormContainer.classList.remove('hidden');
+    hideMessage(registerMessage);
+    clearFieldMessage(userIdMessage);
+    clearFieldMessage(passwordMatchMessage);
+    clearFieldMessage(emailMessage);
+    registerForm.reset();
+    isUserIdChecked = false;
+}
+
+// ===== API Functions =====
+async function apiRequest(endpoint, method = 'GET', data = null) {
+    const options = {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+    };
+    
+    if (data) {
+        options.body = JSON.stringify(data);
+    }
+    
+    const response = await fetch(`${API_BASE}${endpoint}`, options);
+    return response.json();
+}
+
 // ===== Authentication =====
-function handleLogin(e) {
+async function handleLogin(e) {
     e.preventDefault();
     
-    const email = emailInput.value;
-    const password = passwordInput.value;
+    const userId = loginUserIdInput.value.trim();
+    const password = loginPasswordInput.value;
     
-    // Simple validation
-    if (!email || !password) {
-        alert('이메일과 비밀번호를 입력해주세요.');
+    if (!userId || !password) {
+        showMessage(loginMessage, '아이디와 비밀번호를 입력해주세요.', 'error');
         return;
     }
     
-    // Demo login - accept any credentials
-    isLoggedIn = true;
-    currentUser = {
-        email: email,
-        name: email.split('@')[0],
-        role: '의료 연구원'
-    };
+    const submitBtn = loginForm.querySelector('.btn-login');
+    setButtonLoading(submitBtn, true);
+    hideMessage(loginMessage);
     
-    // Update UI
-    const userNameEl = document.querySelector('.user-name');
-    const avatarEl = document.querySelector('.avatar span');
-    
-    if (userNameEl) {
-        userNameEl.textContent = currentUser.name;
+    try {
+        const result = await apiRequest('/login', 'POST', {
+            user_id: userId,
+            password: password
+        });
+        
+        if (result.success) {
+            currentUser = result.user;
+            isLoggedIn = true;
+            updateUserDisplay();
+            switchToChat();
+        } else {
+            showMessage(loginMessage, result.message, 'error');
+        }
+    } catch (error) {
+        showMessage(loginMessage, '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
-    if (avatarEl) {
-        avatarEl.textContent = currentUser.name.substring(0, 2).toUpperCase();
-    }
-    
-    // Switch to chat page
-    loginPage.classList.remove('active');
-    chatPage.classList.add('active');
-    
-    // Focus on message input
-    setTimeout(() => messageInput.focus(), 300);
 }
 
-function handleLogout(e) {
+async function handleRegister(e) {
     e.preventDefault();
+    
+    const userId = regUserIdInput.value.trim();
+    const password = regPasswordInput.value;
+    const passwordConfirm = regPasswordConfirmInput.value;
+    const name = regNameInput.value.trim();
+    const job = regJobInput.value;
+    const email = regEmailInput.value.trim();
+    
+    // Validation
+    if (!userId || !password || !passwordConfirm || !name || !job || !email) {
+        showMessage(registerMessage, '모든 필수 항목을 입력해주세요.', 'error');
+        return;
+    }
+    
+    if (!isUserIdChecked) {
+        showMessage(registerMessage, '아이디 중복확인을 해주세요.', 'error');
+        return;
+    }
+    
+    if (password !== passwordConfirm) {
+        showMessage(registerMessage, '비밀번호가 일치하지 않습니다.', 'error');
+        return;
+    }
+    
+    if (password.length < 8) {
+        showMessage(registerMessage, '비밀번호는 8자 이상이어야 합니다.', 'error');
+        return;
+    }
+    
+    const submitBtn = registerForm.querySelector('.btn-login');
+    setButtonLoading(submitBtn, true);
+    hideMessage(registerMessage);
+    
+    try {
+        const result = await apiRequest('/register', 'POST', {
+            user_id: userId,
+            password: password,
+            name: name,
+            job: job,
+            email: email
+        });
+        
+        if (result.success) {
+            showMessage(registerMessage, '회원가입이 완료되었습니다! 로그인해주세요.', 'success');
+            setTimeout(() => {
+                showLoginForm();
+                loginUserIdInput.value = userId;
+            }, 1500);
+        } else {
+            showMessage(registerMessage, result.message, 'error');
+        }
+    } catch (error) {
+        showMessage(registerMessage, '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+    } finally {
+        setButtonLoading(submitBtn, false);
+    }
+}
+
+async function handleLogout(e) {
+    e.preventDefault();
+    
+    try {
+        await apiRequest('/logout', 'POST');
+    } catch (error) {
+        // Logout locally even if server request fails
+    }
     
     isLoggedIn = false;
     currentUser = null;
     
-    // Reset form
-    loginForm.reset();
-    
-    // Switch to login page
     chatPage.classList.remove('active');
     loginPage.classList.add('active');
-    
-    // Close dropdown
     profileDropdown.classList.remove('active');
     
-    // Reset chat
+    showLoginForm();
     resetChat();
+}
+
+async function checkUserId() {
+    const userId = regUserIdInput.value.trim();
+    
+    if (!userId) {
+        showFieldMessage(userIdMessage, '아이디를 입력해주세요.', 'error');
+        return;
+    }
+    
+    if (userId.length < 4) {
+        showFieldMessage(userIdMessage, '아이디는 4자 이상이어야 합니다.', 'error');
+        return;
+    }
+    
+    checkIdBtn.disabled = true;
+    
+    try {
+        const result = await apiRequest(`/check-id/${userId}`);
+        
+        if (result.exists) {
+            showFieldMessage(userIdMessage, '이미 사용 중인 아이디입니다.', 'error');
+            isUserIdChecked = false;
+        } else {
+            showFieldMessage(userIdMessage, '사용 가능한 아이디입니다.', 'success');
+            isUserIdChecked = true;
+        }
+    } catch (error) {
+        showFieldMessage(userIdMessage, '확인에 실패했습니다.', 'error');
+    } finally {
+        checkIdBtn.disabled = false;
+    }
+}
+
+function checkPasswordMatch() {
+    const password = regPasswordInput.value;
+    const confirmPassword = regPasswordConfirmInput.value;
+    
+    if (!confirmPassword) {
+        clearFieldMessage(passwordMatchMessage);
+        return;
+    }
+    
+    if (password === confirmPassword) {
+        showFieldMessage(passwordMatchMessage, '비밀번호가 일치합니다.', 'success');
+    } else {
+        showFieldMessage(passwordMatchMessage, '비밀번호가 일치하지 않습니다.', 'error');
+    }
+}
+
+// ===== UI Updates =====
+function updateUserDisplay() {
+    if (currentUser) {
+        displayName.textContent = currentUser.name;
+        displayJob.textContent = currentUser.job;
+        avatarText.textContent = currentUser.name.substring(0, 2).toUpperCase();
+    }
+}
+
+async function switchToChat() {
+    loginPage.classList.remove('active');
+    chatPage.classList.add('active');
+    setTimeout(() => messageInput.focus(), 300);
+    
+    // 모델 상태 확인
+    await checkModelStatus();
+    if (modelStatus.loaded) {
+        console.log(`MedGemma model ready on ${modelStatus.device}`);
+    } else {
+        console.warn('AI model not loaded - responses may be limited');
+    }
 }
 
 // ===== Chat Functions =====
 function resetChat() {
-    // Restore welcome message
     chatMessages.innerHTML = `
         <div class="welcome-container">
             <div class="welcome-icon">
@@ -148,12 +361,10 @@ function resetChat() {
         </div>
     `;
     
-    // Reattach suggestion card listeners
     attachSuggestionListeners();
 }
 
 function addMessage(content, type) {
-    // Remove welcome container if exists
     const welcomeContainer = chatMessages.querySelector('.welcome-container');
     if (welcomeContainer) {
         welcomeContainer.remove();
@@ -214,29 +425,69 @@ async function sendMessage() {
     
     if (!message) return;
     
-    // Add user message
     addMessage(message, 'user');
-    
-    // Clear input
     messageInput.value = '';
     autoResizeTextarea(messageInput);
-    
-    // Disable send button
     sendBtn.disabled = true;
     
-    // Show typing indicator
     addTypingIndicator();
     
-    // Simulate AI response delay
-    await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
+    try {
+        // MedGemma API 호출
+        const result = await apiRequest('/chat', 'POST', { message: message });
+        
+        removeTypingIndicator();
+        
+        if (result.success) {
+            // 마크다운 스타일 텍스트를 HTML로 변환
+            const formattedResponse = formatResponseText(result.response);
+            addMessage(formattedResponse, 'assistant');
+            
+            // 모델 정보 로깅 (개발용)
+            console.log(`Response from: ${result.model}`);
+        } else {
+            addMessage('죄송합니다. 응답을 생성하는 중 오류가 발생했습니다. 다시 시도해주세요.', 'assistant');
+        }
+    } catch (error) {
+        removeTypingIndicator();
+        console.error('Chat error:', error);
+        addMessage('서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.', 'assistant');
+    }
     
-    // Remove typing indicator and add response
-    removeTypingIndicator();
-    addMessage(getRandomResponse(), 'assistant');
-    
-    // Re-enable send button
     sendBtn.disabled = false;
     messageInput.focus();
+}
+
+// 응답 텍스트 포맷팅 (마크다운 스타일 → HTML)
+function formatResponseText(text) {
+    if (!text) return '';
+    
+    // 줄바꿈 처리
+    let formatted = text.replace(/\n/g, '<br>');
+    
+    // **bold** 처리
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // *italic* 처리
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // 리스트 항목 처리 (• 또는 -)
+    formatted = formatted.replace(/^[•\-]\s/gm, '&bull; ');
+    
+    return formatted;
+}
+
+// 모델 상태 확인
+async function checkModelStatus() {
+    try {
+        const result = await apiRequest('/model-status');
+        modelStatus = result;
+        console.log('Model status:', modelStatus);
+        return modelStatus;
+    } catch (error) {
+        console.error('Failed to check model status:', error);
+        return { loaded: false, model_name: null, device: 'unknown' };
+    }
 }
 
 function handleSuggestionClick(card) {
@@ -255,8 +506,33 @@ function attachSuggestionListeners() {
 }
 
 // ===== Event Listeners =====
+// Form switching
+showRegisterLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    showRegisterForm();
+});
+
+showLoginLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    showLoginForm();
+});
+
 // Login form
 loginForm.addEventListener('submit', handleLogin);
+
+// Register form
+registerForm.addEventListener('submit', handleRegister);
+checkIdBtn.addEventListener('click', checkUserId);
+
+// Reset ID check when user changes ID
+regUserIdInput.addEventListener('input', () => {
+    isUserIdChecked = false;
+    clearFieldMessage(userIdMessage);
+});
+
+// Password match check
+regPasswordConfirmInput.addEventListener('input', checkPasswordMatch);
+regPasswordInput.addEventListener('input', checkPasswordMatch);
 
 // Logout
 logoutBtn.addEventListener('click', handleLogout);
@@ -294,9 +570,7 @@ newChatBtn.addEventListener('click', resetChat);
 // Suggestion cards
 attachSuggestionListeners();
 
-// Check for saved session (demo)
+// Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    // Could implement session persistence here
     loginPage.classList.add('active');
 });
-
