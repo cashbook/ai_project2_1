@@ -34,21 +34,28 @@ def load_medgemma_model():
         # 토크나이저 로드
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         
-        # CPU 강제 사용 (CUDA 에러 방지)
-        device = "cpu"
-        print("Using CPU for stable inference (GPU has compatibility issues).")
+        # GPU 사용 (CUDA 가능 시)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Using device: {device}")
         
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float32,
-            device_map=None,
-            low_cpu_mem_usage=True
-        )
-        model = model.to(device)
+        if device == "cuda":
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.bfloat16,
+                device_map="auto",
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.float32,
+                device_map=None,
+                low_cpu_mem_usage=True
+            )
+            model = model.to(device)
         model.eval()
         
         MODEL_LOADED = True
-        print("MedGemma 4B model loaded successfully on CPU!")
+        print(f"MedGemma 4B model loaded successfully on {device.upper()}!")
         return True
         
     except Exception as e:
@@ -87,8 +94,8 @@ def generate_response(user_message: str, max_length: int = 512) -> str:
                 max_length=2048
             )
             
-            # CPU로 강제 설정
-            device = "cpu"
+            # GPU/CPU 설정
+            device = "cuda" if torch.cuda.is_available() else "cpu"
             inputs = {k: v.to(device) for k, v in inputs.items()}
             
             # 응답 생성
@@ -183,10 +190,11 @@ def chat():
 # 모델 상태 확인
 @app.route('/api/model-status', methods=['GET'])
 def model_status():
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     return jsonify({
         'loaded': MODEL_LOADED,
         'model_name': 'MedGemma-4B' if MODEL_LOADED else None,
-        'device': 'cpu'  # CPU 강제 사용
+        'device': device
     }), 200
 
 # 회원가입
