@@ -10,8 +10,10 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 app.config['SECRET_KEY'] = 'medresearch-ai-secret-key-2024'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///medresearch.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = False
 
-CORS(app, supports_credentials=True)
+CORS(app, supports_credentials=True, origins=["http://127.0.0.1:5000", "http://localhost:5000"])
 db = SQLAlchemy(app)
 
 # ===== MedGemma Model Setup =====
@@ -21,13 +23,13 @@ model_lock = Lock()
 MODEL_LOADED = False
 
 def load_medgemma_model():
-    """MedGemma 4B 모델 로드"""
+    """MedGemma 4B 모델 로드 (8비트 양자화)"""
     global model, tokenizer, MODEL_LOADED
     
     try:
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
         
-        print("Loading MedGemma 4B model... This may take a few minutes.")
+        print("Loading MedGemma 4B model with 8-bit quantization... This may take a few minutes.")
         
         model_name = "google/medgemma-4b-it"
         
@@ -39,12 +41,21 @@ def load_medgemma_model():
         print(f"Using device: {device}")
         
         if device == "cuda":
+            # 8비트 양자화 설정
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_threshold=6.0,
+                llm_int8_has_fp16_weight=False,
+            )
+            
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                torch_dtype=torch.bfloat16,
+                quantization_config=quantization_config,
                 device_map="auto",
             )
+            print("8-bit quantization enabled - VRAM usage reduced!")
         else:
+            # CPU에서는 양자화 없이 로드
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 torch_dtype=torch.float32,
@@ -52,10 +63,11 @@ def load_medgemma_model():
                 low_cpu_mem_usage=True
             )
             model = model.to(device)
+            print("Running on CPU without quantization")
         model.eval()
         
         MODEL_LOADED = True
-        print(f"MedGemma 4B model loaded successfully on {device.upper()}!")
+        print(f"MedGemma 4B model loaded successfully on {device.upper()} with 8-bit quantization!")
         return True
         
     except Exception as e:
